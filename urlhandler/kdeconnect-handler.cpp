@@ -42,6 +42,7 @@
  */
 class ShareDevicesProxyModel : public DevicesSortProxyModel
 {
+    Q_OBJECT
 public:
     bool filterAcceptsRow(int source_row, const QModelIndex & source_parent) const override {
         const QModelIndex idx = sourceModel()->index(source_row, 0, source_parent);
@@ -64,9 +65,11 @@ int main(int argc, char** argv)
     KAboutData::setApplicationData(about);
 
     QUrl urlToShare;
+    bool open;
     {
         QCommandLineParser parser;
         parser.addPositionalArgument(QStringLiteral("url"), i18n("URL to share"));
+        parser.addOption(QCommandLineOption(QStringLiteral("open"), QStringLiteral("Open the file on the remote device")));
         parser.addHelpOption();
         about.setupCommandLine(&parser);
         parser.process(app);
@@ -77,6 +80,7 @@ int main(int argc, char** argv)
         }
 
         urlToShare = QUrl::fromUserInput(parser.positionalArguments().constFirst());
+        open = parser.isSet(QStringLiteral("open"));
     }
 
     DevicesModel model;
@@ -85,25 +89,34 @@ int main(int argc, char** argv)
     proxyModel.setSourceModel(&model);
 
     QDialog dialog;
-    dialog.setWindowTitle(urlToShare.toDisplayString());
+
     Ui::Dialog uidialog;
     uidialog.setupUi(&dialog);
     uidialog.devicePicker->setModel(&proxyModel);
 
+    QString displayUrl;
+
     if (urlToShare.scheme() == QLatin1String("tel")) {
-        uidialog.label->setText(i18n("Device to call this phone number with:"));
-        uidialog.urlLabel->setText(urlToShare.toDisplayString(QUrl::RemoveScheme));
+        displayUrl = urlToShare.toDisplayString(QUrl::RemoveScheme);
+        uidialog.label->setText(i18n("Device to call %1 with:", displayUrl));
+    } else if (urlToShare.isLocalFile() && open) {
+        displayUrl = urlToShare.toDisplayString(QUrl::PreferLocalFile);
+        uidialog.label->setText(i18n("Device to send %1 to:", displayUrl));
     } else {
-        uidialog.urlLabel->setText(urlToShare.toDisplayString());
+        displayUrl = urlToShare.toDisplayString(QUrl::PreferLocalFile);
+        uidialog.label->setText(i18n("Device to open %1 on:", displayUrl));
     }
+
+    dialog.setWindowTitle(displayUrl);
 
     if (dialog.exec() == QDialog::Accepted) {
         QUrl url = urlToShare;
         const int currentDeviceIndex = uidialog.devicePicker->currentIndex();
         if(!url.isEmpty() && currentDeviceIndex >= 0) {
             const QString device = proxyModel.index(currentDeviceIndex, 0).data(DevicesModel::IdModelRole).toString();
+            const QString action = open && url.isLocalFile() ? QStringLiteral("openFile") : QStringLiteral("shareUrl");
 
-            QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.kdeconnect"), "/modules/kdeconnect/devices/"+device+"/share", QStringLiteral("org.kde.kdeconnect.device.share"), QStringLiteral("shareUrl"));
+            QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.kdeconnect"), "/modules/kdeconnect/devices/"+device+"/share", QStringLiteral("org.kde.kdeconnect.device.share"), action);
             msg.setArguments({ url.toString() });
             blockOnReply(QDBusConnection::sessionBus().asyncCall(msg));
             return 0;
@@ -115,3 +128,5 @@ int main(int argc, char** argv)
         return 1;
     }
 }
+
+#include "kdeconnect-handler.moc"

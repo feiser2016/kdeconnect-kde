@@ -27,14 +27,14 @@
 #include <core/device.h>
 #include <core/kdeconnectplugin.h>
 
-#include "telephonyplugin.h"
+Q_LOGGING_CATEGORY(KDECONNECT_CONVERSATIONS, "kdeconnect.conversations")
 
 ConversationsDbusInterface::ConversationsDbusInterface(KdeConnectPlugin* plugin)
     : QDBusAbstractAdaptor(const_cast<Device*>(plugin->device()))
     , m_device(plugin->device())
     , m_plugin(plugin)
     , m_lastId(0)
-    , m_telephonyInterface(m_device->id())
+    , m_smsInterface(m_device->id())
 {
     ConversationMessage::registerDbusType();
 }
@@ -43,26 +43,49 @@ ConversationsDbusInterface::~ConversationsDbusInterface()
 {
 }
 
-QStringList ConversationsDbusInterface::activeConversations()
+QVariantList ConversationsDbusInterface::activeConversations()
 {
-    return m_conversations.keys();
+    QList<QVariant> toReturn;
+    toReturn.reserve(m_conversations.size());
+
+    for (auto it = m_conversations.cbegin(); it != m_conversations.cend(); ++it) {
+        const auto& conversation = it.value().values();
+        if (conversation.isEmpty()) {
+            // This should really never happen because we create a conversation at the same time
+            // as adding a message, but better safe than sorry
+            qCWarning(KDECONNECT_CONVERSATIONS)
+                    << "Conversation with ID" << it.key() << "is unexpectedly empty";
+            break;
+        }
+        const QVariantMap& message = (*conversation.crbegin()).toVariant();
+        toReturn.append(message);
+    }
+
+    return toReturn;
 }
 
 void ConversationsDbusInterface::requestConversation(const QString& conversationID, int start, int end)
 {
-    const auto messagesList = m_conversations[conversationID];
+    const auto messagesList = m_conversations[conversationID].values();
 
-    if (messagesList.isEmpty())
-    {
+    if (messagesList.isEmpty()) {
         // Since there are no messages in the conversation, it's likely that it is a junk ID, but go ahead anyway
-        qCWarning(KDECONNECT_PLUGIN_TELEPHONY) << "Got a conversationID for a conversation with no messages!" << conversationID;
+        qCWarning(KDECONNECT_CONVERSATIONS) << "Got a conversationID for a conversation with no messages!" << conversationID;
     }
 
-    m_telephonyInterface.requestConversation(conversationID);
+    // TODO: Check local cache before requesting new messages
+    // TODO: Make Android interface capable of requesting small window of messages
+    m_smsInterface.requestConversation(conversationID);
 
-    for(int i=start; i<end; ++i) {
-        if (i<messagesList.size()) {
-            Q_EMIT conversationMessageReceived(messagesList.at(i).toVariant(), i);
+    // Messages are sorted in ascending order of keys, meaning the front of the list has the oldest
+    // messages (smallest timestamp number)
+    // Therefore, return the end of the list first (most recent messages)
+    int i = start;
+    for(auto it = messagesList.crbegin() + start; it != messagesList.crend(); ++it) {
+        Q_EMIT conversationMessageReceived(it->toVariant(), i);
+        i++;
+        if (i >= end) {
+            break;
         }
     }
 }
@@ -71,24 +94,21 @@ void ConversationsDbusInterface::addMessage(const ConversationMessage &message)
 {
     const QString& threadId = QString::number(message.threadID());
 
-    if (m_known_messages[threadId].contains(message.uID()))
-    {
+    if (m_known_messages[threadId].contains(message.uID())) {
         // This message has already been processed. Don't do anything.
         return;
     }
 
     // Store the Message in the list corresponding to its thread
     bool newConversation = !m_conversations.contains(threadId);
-    m_conversations[threadId].append(message);
+    m_conversations[threadId].insert(message.date(), message);
     m_known_messages[threadId].insert(message.uID());
 
     // Tell the world about what just happened
-    if (newConversation)
-    {
-        Q_EMIT conversationCreated(threadId);
-    } else
-    {
-        Q_EMIT conversationUpdated(threadId);
+    if (newConversation) {
+        Q_EMIT conversationCreated(message.toVariant());
+    } else {
+        Q_EMIT conversationUpdated(message.toVariant());
     }
 }
 
@@ -100,20 +120,23 @@ void ConversationsDbusInterface::removeMessage(const QString& internalId)
 void ConversationsDbusInterface::replyToConversation(const QString& conversationID, const QString& message)
 {
     const auto messagesList = m_conversations[conversationID];
-    if (messagesList.isEmpty())
-    {
+    if (messagesList.isEmpty()) {
         // Since there are no messages in the conversation, we can't do anything sensible
-        qCWarning(KDECONNECT_PLUGIN_TELEPHONY) << "Got a conversationID for a conversation with no messages!";
+        qCWarning(KDECONNECT_CONVERSATIONS) << "Got a conversationID for a conversation with no messages!";
         return;
     }
-    const QString& address = messagesList.front().address();
-    m_telephonyInterface.sendSms(address, message);
+    // Caution:
+    // This method assumes that the address of any message (in this case, whichever one pops out
+    // with .first()) will be the same. This works fine for single-target SMS but might break down
+    // for group MMS, etc.
+    const QString& address = messagesList.first().address();
+    m_smsInterface.sendSms(address, message);
 }
 
 void ConversationsDbusInterface::requestAllConversationThreads()
 {
     // Prepare the list of conversations by requesting the first in every thread
-    m_telephonyInterface.requestAllConversations();
+    m_smsInterface.requestAllConversations();
 }
 
 QString ConversationsDbusInterface::newId()

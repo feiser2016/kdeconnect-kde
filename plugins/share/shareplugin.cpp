@@ -166,6 +166,25 @@ void SharePlugin::shareUrl(const QUrl& url)
     sendPacket(packet);
 }
 
+void SharePlugin::shareText(const QString& text)
+{
+    NetworkPacket packet(PACKET_TYPE_SHARE_REQUEST);
+    packet.set<QString>(QStringLiteral("text"), text);
+    sendPacket(packet);
+}
+
+void SharePlugin::openFile(const QUrl& url)
+{
+    NetworkPacket packet(PACKET_TYPE_SHARE_REQUEST);
+    if(url.isLocalFile()) {
+        QSharedPointer<QIODevice> ioFile(new QFile(url.toLocalFile()));
+        packet.setPayload(ioFile, ioFile->size());
+        packet.set<QString>(QStringLiteral("filename"), QUrl(url).fileName());
+        packet.set<bool>(QStringLiteral("open"), true);
+    }
+    sendPacket(packet);
+}
+
 QString SharePlugin::dbusPath() const
 {
     return "/modules/kdeconnect/devices/" + device()->id() + "/share";

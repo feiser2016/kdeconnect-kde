@@ -4,7 +4,8 @@ project(kdeconnect)
 
 set(KDECONNECT_VERSION_MAJOR 1)
 set(KDECONNECT_VERSION_MINOR 3)
-set(KDECONNECT_VERSION_PATCH 0)
+set(KDECONNECT_VERSION_PATCH 3)
+
 set(KDECONNECT_VERSION "${KDECONNECT_VERSION_MAJOR}.${KDECONNECT_VERSION_MINOR}.${KDECONNECT_VERSION_PATCH}")
 
 find_package(PkgConfig)
@@ -80,6 +81,7 @@ endif()
 
 add_subdirectory(icon)
 add_subdirectory(interfaces)
+add_subdirectory(data)
 
 option(EXPERIMENTALAPP_ENABLED OFF)
 if(EXPERIMENTALAPP_ENABLED)
@@ -100,6 +102,13 @@ endif()
 option(SMSAPP_ENABLED OFF)
 if(SMSAPP_ENABLED)
     find_package(KF5People REQUIRED)
+    find_package(KF5PeopleVCard)
+    set_package_properties(KF5PeopleVCard PROPERTIES
+        PURPOSE "Read vcards from the file system"
+        URL "https://phabricator.kde.org/source/kpeoplevcard/"
+        TYPE RUNTIME
+    )
+
     add_subdirectory(smsapp)
 endif()
 
@@ -111,7 +120,4 @@ if(BUILD_TESTING AND NOT SAILFISHOS)
     add_subdirectory(tests)
 endif()
 
-if(NOT SAILFISHOS)
-    install(FILES org.kde.kdeconnect.kcm.appdata.xml DESTINATION ${KDE_INSTALL_METAINFODIR})
-endif()
 feature_summary(WHAT ALL INCLUDE_QUIET_PACKAGES FATAL_ON_MISSING_REQUIRED_PACKAGES)

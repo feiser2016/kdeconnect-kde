@@ -45,7 +45,9 @@
 #define MIN_VERSION_WITH_SSL_SUPPORT 6
 
 LanLinkProvider::LanLinkProvider(bool testMode)
-    : m_testMode(testMode)
+    : m_udpSocket(this)
+    , m_testMode(testMode)
+    , m_combineBroadcastsTimer(this)
 {
     m_tcpPort = 0;
 
@@ -330,7 +332,7 @@ void LanLinkProvider::sslErrors(const QList<QSslError>& errors)
 //I'm the new device and this is the answer to my UDP identity packet (no data received yet). They are connecting to us through TCP, and they should send an identity.
 void LanLinkProvider::newConnection()
 {
-    //qCDebug(KDECONNECT_CORE) << "LanLinkProvider newConnection";
+    qCDebug(KDECONNECT_CORE) << "LanLinkProvider newConnection";
 
     while (m_server->hasPendingConnections()) {
         QSslSocket* socket = m_server->nextPendingConnection();
@@ -353,7 +355,7 @@ void LanLinkProvider::dataReceived()
 
     const QByteArray data = socket->readLine();
 
-    //qCDebug(KDECONNECT_CORE) << "LanLinkProvider received reply:" << data;
+    qCDebug(KDECONNECT_CORE) << "LanLinkProvider received reply:" << data;
 
     NetworkPacket* np = new NetworkPacket(QLatin1String(""));
     bool success = NetworkPacket::unserialize(data, np);
@@ -420,7 +422,7 @@ void LanLinkProvider::deviceLinkDestroyed(QObject* destroyedDeviceLink)
 void LanLinkProvider::configureSslSocket(QSslSocket* socket, const QString& deviceId, bool isDeviceTrusted)
 {
     // Setting supported ciphers manually
-    // Top 3 ciphers are for new Android devices, botton two are for old Android devices
+    // Top 3 ciphers are for new Android devices, bottom two are for old Android devices
     // FIXME : These cipher suites should be checked whether they are supported or not on device
     QList<QSslCipher> socketCiphers;
     socketCiphers.append(QSslCipher(QStringLiteral("ECDHE-ECDSA-AES256-GCM-SHA384")));

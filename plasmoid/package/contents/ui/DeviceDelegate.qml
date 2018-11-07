@@ -24,6 +24,7 @@ import org.kde.plasma.core 2.0 as PlasmaCore
 import org.kde.plasma.components 2.0 as PlasmaComponents
 import org.kde.kdeconnect 1.0
 import QtQuick.Controls.Styles 1.4
+import QtQuick.Dialogs 1.0
 
 PlasmaComponents.ListItem
 {
@@ -90,7 +91,7 @@ PlasmaComponents.ListItem
         {
             Item {
                 //spacer to make the label centre aligned in a row yet still elide and everything
-                implicitWidth: (ring.visible? ring.width : 0) + (browse.visible? browse.width : 0) + parent.spacing
+                implicitWidth: (ring.visible? ring.width : 0) + (browse.visible? browse.width : 0) + (shareFile.visible? shareFile.width : 0) + parent.spacing
             }
 
             Battery {
@@ -104,6 +105,29 @@ PlasmaComponents.ListItem
                 text: (battery.available && battery.charge > -1) ? i18n("%1 (%2)", display, battery.displayString) : display
                 Layout.fillWidth: true
                 textFormat: Text.PlainText
+            }
+
+            //Share
+            PlasmaComponents.Button
+            {
+                Share {
+                    id: share
+                    device: root.device
+                }
+                FileDialog {
+                    id: fileDialog
+                    title: "Please choose a file"
+                    folder: shortcuts.home
+                }
+
+                id: shareFile
+                iconSource: "document-share"
+                visible: share.available
+                tooltip: i18n("Share file")
+                onClicked: {
+                    fileDialog.open()
+                    share.plugin.shareUrl(fileDialog.fileUrl)
+                }
             }
 
             //Find my phone
@@ -195,7 +219,7 @@ PlasmaComponents.ListItem
                 enabled: true
                 visible: notificationsModel.isAnyDimissable;
                 anchors.right: parent.right
-                iconSource: "edit-delete"
+                iconSource: "edit-clear-history"
                 tooltip: i18n("Dismiss all notifications")
                 onClicked: notificationsModel.dismissAll();
             }
@@ -253,11 +277,24 @@ PlasmaComponents.ListItem
         }
 
         // Commands
-        PlasmaComponents.Label {
-            visible: rc.available && commandsModel.rowCount() > 0
-            text: i18n("Run command")
-        }
+        RowLayout {
+            visible: rc.available
+            width: parent.width
 
+            PlasmaComponents.Label {
+                text: i18n("Run command")
+                Layout.fillWidth: true
+            }
+
+            PlasmaComponents.Button
+            {
+                id: addCommandButton
+                iconSource: "list-add"
+                tooltip: i18n("Add command")
+                onClicked: rc.plugin.editCommands()
+                visible: rc.plugin.canAddCommand
+            }
+        }
         Repeater {
             id: commandsView
             visible: rc.available

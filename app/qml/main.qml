@@ -31,8 +31,6 @@ Kirigami.ApplicationWindow
     width: 900
     height: 500
 
-    header: Kirigami.ApplicationHeader {}
-
     Component {
         id: findDevicesComp
         FindDevicesPage {}
@@ -61,9 +59,11 @@ Kirigami.ApplicationWindow
         titleIcon: "kdeconnect"
 //         bannerImageSource: "/home/apol/devel/kde5/share/wallpapers/Next/contents/images/1024x768.png"
 
+        modal: !root.wideScreen
+        handleVisible: !root.wideScreen
+
         topContent: [
-            TextField {
-                Layout.fillWidth: true
+            RowLayout {
 
                 DBusProperty {
                     id: announcedNameProperty
@@ -72,10 +72,32 @@ Kirigami.ApplicationWindow
                     defaultValue: ""
                 }
 
-                text: announcedNameProperty.value
-                onAccepted: {
-                    DaemonDbusInterface.setAnnouncedName(text)
-                    text = Qt.binding(function() {return announcedNameProperty.value})
+                TextField {
+                    id: nameField
+                    visible: false
+                    Layout.fillWidth: true
+                    Layout.leftMargin: Kirigami.Units.smallSpacing
+                    text: announcedNameProperty.value
+                    onAccepted: {
+                        DaemonDbusInterface.setAnnouncedName(text)
+                        text = Qt.binding(function() {return announcedNameProperty.value})
+                    }
+                }
+
+                Label {
+                    text: announcedNameProperty.value
+                    visible: !nameField.visible
+                    Layout.fillWidth: true
+                    font.pointSize: 18
+                    Layout.leftMargin: Kirigami.Units.smallSpacing
+                }
+
+                Button {
+                    icon.name: nameField.visible ? "dialog-ok-apply" : "entry-edit"
+                    onClicked: {
+                        nameField.visible = !nameField.visible
+                        nameField.accepted()
+                    }
                 }
             }
         ]

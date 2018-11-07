@@ -33,10 +33,14 @@ Kirigami.Page
     actions.main: Kirigami.Action {
         icon.name: "document-edit"
         text: i18n("Edit commands")
-        onTriggered: pluginInterface.editCommands()
+        onTriggered: {
+            pluginInterface.editCommands();
+            showPassiveNotification(i18n("You can edit commands on the connected device"));
+        }
     }
 
     ListView {
+        id: commandsList
         anchors.fill: parent
         model: RemoteCommandsModel {
             deviceId: pluginInterface.deviceId
@@ -47,6 +51,12 @@ Kirigami.Page
             onClicked: pluginInterface.triggerCommand(key)
             reserveSpaceForIcon: false
         }
+    }
+
+    Label {
+        visible: commandsList.count === 0
+        text: i18n("No commands defined")
+        anchors.centerIn: parent
     }
 
 }

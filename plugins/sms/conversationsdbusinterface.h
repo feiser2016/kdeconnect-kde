@@ -1,5 +1,6 @@
 /**
  * Copyright 2013 Albert Vaca <albertvaka@gmail.com>
+ * Copyright 2018 Simon Redman <simon@ergotech.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -24,6 +25,7 @@
 #include <QDBusAbstractAdaptor>
 #include <QHash>
 #include <QList>
+#include <QMap>
 #include <QString>
 #include <QStringList>
 #include <QDir>
@@ -34,6 +36,8 @@
 
 class KdeConnectPlugin;
 class Device;
+
+Q_DECLARE_LOGGING_CATEGORY(KDECONNECT_CONVERSATIONS)
 
 class ConversationsDbusInterface
     : public QDBusAbstractAdaptor
@@ -50,9 +54,12 @@ public:
 
 public Q_SLOTS:
     /**
-     * Return a list of the threadID for all valid conversations
+     * Return a list of the first message in every conversation
+     *
+     * Note that the return value is a list of QVariants, which in turn have a value of
+     * QVariantMap created from each message
      */
-    QStringList activeConversations();
+    QVariantList activeConversations();
 
     void requestConversation(const QString &conversationID, int start, int end);
 
@@ -67,10 +74,10 @@ public Q_SLOTS:
     void requestAllConversationThreads();
 
 Q_SIGNALS:
-    Q_SCRIPTABLE void conversationCreated(const QString& threadID);
+    Q_SCRIPTABLE void conversationCreated(const QVariantMap& msg);
     Q_SCRIPTABLE void conversationRemoved(const QString& threadID);
-    Q_SCRIPTABLE void conversationUpdated(const QString& threadID);
-    Q_SCRIPTABLE void conversationMessageReceived(const QVariantMap & msg, int pos) const;
+    Q_SCRIPTABLE void conversationUpdated(const QVariantMap& msg) const;
+    Q_SCRIPTABLE void conversationMessageReceived(const QVariantMap& msg, int pos) const;
 
 private /*methods*/:
     QString newId(); //Generates successive identifitiers to use as public ids
@@ -80,9 +87,12 @@ private /*attributes*/:
     KdeConnectPlugin* m_plugin;
 
     /**
-     * Mapping of threadID to the list of messages which make up that thread
+     * Mapping of threadID to the messages which make up that thread
+     *
+     * The messages are stored as a QMap of the timestamp to the actual message object so that
+     * we can use .values() to get a sorted list of messages from least- to most-recent
      */
-    QHash<QString, QVector<ConversationMessage>> m_conversations;
+    QHash<QString, QMap<qint64, ConversationMessage>> m_conversations;
 
     /**
      * Mapping of threadID to the set of uIDs known in the corresponding conversation
@@ -91,7 +101,7 @@ private /*attributes*/:
 
     int m_lastId;
 
-    TelephonyDbusInterface m_telephonyInterface;
+    SmsDbusInterface m_smsInterface;
 };
 
 #endif // CONVERSATIONSDBUSINTERFACE_H

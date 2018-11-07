@@ -41,7 +41,7 @@ int main(int argc, char** argv)
                      QStringLiteral("kdeconnect-cli"),
                      QStringLiteral(KDECONNECT_VERSION_STRING),
                      i18n("KDE Connect CLI tool"),
-                     KAboutLicense::GPL, 
+                     KAboutLicense::GPL,
                      i18n("(C) 2015 Aleix Pol Gonzalez"));
     KAboutData::setApplicationData(about);
 
@@ -148,25 +148,20 @@ int main(int argc, char** argv)
 
         if (parser.isSet(QStringLiteral("share"))) {
             QList<QUrl> urls;
-            QUrl url = QUrl::fromUserInput(parser.value(QStringLiteral("share")));
+            QUrl url = QUrl::fromUserInput(parser.value(QStringLiteral("share")), QDir::currentPath());
             urls.append(url);
 
-            //In case there are more arguments, check if they are files and then send them
-            for (const QString& file : parser.positionalArguments()) {
-                QUrl url = QUrl::fromUserInput(file, QDir::currentPath());
-                if (!url.isLocalFile()) {
-                    QTextStream(stderr) << i18n("Can't find the file: %1", url.toString()) << endl;
-                    return 1;
-                } else {
-                    urls.append(url);
-                }
+            // Check for more arguments
+            for (const QString& input : parser.positionalArguments()) {
+                QUrl url = QUrl::fromUserInput(input, QDir::currentPath());
+                urls.append(url);
             }
 
             for (const QUrl& url : urls) {
                 QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.kdeconnect"), "/modules/kdeconnect/devices/"+device+"/share", QStringLiteral("org.kde.kdeconnect.device.share"), QStringLiteral("shareUrl"));
                 msg.setArguments(QVariantList() << url.toString());
                 blockOnReply(QDBusConnection::sessionBus().asyncCall(msg));
-                QTextStream(stdout) << i18n("Sent %1", url.toString()) << endl;
+                QTextStream(stdout) << i18n("Shared %1", url.toString()) << endl;
             }
         } else if(parser.isSet(QStringLiteral("pair"))) {
             DeviceDbusInterface dev(device);
@@ -197,9 +192,7 @@ int main(int argc, char** argv)
             blockOnReply(iface.releaseDiscoveryMode(id));
         } else if(parser.isSet(QStringLiteral("unpair"))) {
             DeviceDbusInterface dev(device);
-            if (!dev.isReachable()) {
-                QTextStream(stderr) << i18n("Device does not exist") << endl;
-            } else if(!dev.isTrusted()) {
+            if (!dev.isTrusted()) {
                 QTextStream(stderr) << i18n("Already not paired") << endl;
             } else {
                 QTextStream(stderr) << i18n("Unpaired") << endl;
@@ -214,7 +207,7 @@ int main(int argc, char** argv)
             blockOnReply(QDBusConnection::sessionBus().asyncCall(msg));
         } else if(parser.isSet(QStringLiteral("send-sms"))) {
             if (parser.isSet(QStringLiteral("destination"))) {
-                QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.kdeconnect"), "/modules/kdeconnect/devices/"+device+"/telephony", QStringLiteral("org.kde.kdeconnect.device.telephony"), QStringLiteral("sendSms"));
+                QDBusMessage msg = QDBusMessage::createMethodCall(QStringLiteral("org.kde.kdeconnect"), "/modules/kdeconnect/devices/"+device+"/sms", QStringLiteral("org.kde.kdeconnect.device.sms"), QStringLiteral("sendSms"));
                 msg.setArguments({ parser.value("destination"), parser.value("send-sms") });
                 blockOnReply(QDBusConnection::sessionBus().asyncCall(msg));
             } else {
